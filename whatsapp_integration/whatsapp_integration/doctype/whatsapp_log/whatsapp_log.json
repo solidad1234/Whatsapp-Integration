@@ -9,7 +9,9 @@
   "recipient",
   "message",
   "status",
-  "error_message"
+  "error_message",
+  "has_media",
+  "media_url"
  ],
  "fields": [
   {
@@ -36,12 +38,24 @@
    "fieldname": "error_message",
    "fieldtype": "Text",
    "label": "Error Message"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_media",
+   "fieldtype": "Check",
+   "label": "Has Media"
+  },
+  {
+   "depends_on": "eval:doc.has_media==1",
+   "fieldname": "media_url",
+   "fieldtype": "Data",
+   "label": "Media URL"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-06 08:50:18.027563",
+ "modified": "2026-08-06 09:41:42.380932",
  "modified_by": "Administrator",
  "module": "Whatsapp Integration",
  "name": "WhatsApp Log",
