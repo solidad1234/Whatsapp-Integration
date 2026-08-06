@@ -4,6 +4,20 @@ from frappe import _
 
 WACLIENT_API_URL = "https://api.waclient.com/send"
 
+def format_phone_number(number):
+    if not number:
+        return number
+    # Keep only digits
+    cleaned = ''.join(filter(str.isdigit, str(number)))
+    
+    # Handle Kenyan numbers
+    if cleaned.startswith('0') and len(cleaned) == 10:
+        return '254' + cleaned[1:]
+    elif len(cleaned) == 9:
+        return '254' + cleaned
+    
+    return cleaned
+
 def get_settings():
     try:
         settings = frappe.get_single("WhatsApp Settings")
@@ -13,24 +27,29 @@ def get_settings():
     except frappe.DoesNotExistError:
         return None
 
-def log_message(recipient, message, status, error_message=None):
+def log_message(recipient, message, status, error_message=None, has_media=0, media_url=None):
     try:
         doc = frappe.get_doc({
             "doctype": "WhatsApp Log",
             "recipient": recipient,
             "message": message,
             "status": status,
-            "error_message": error_message
+            "error_message": error_message,
+            "has_media": has_media,
+            "media_url": media_url
         })
         doc.insert(ignore_permissions=True)
         frappe.db.commit()
     except Exception as e:
         frappe.log_error(f"Failed to create WhatsApp Log: {str(e)}", "WhatsApp Integration Error")
 
+@frappe.whitelist()
 def send_whatsapp_message(number, message):
     settings = get_settings()
     if not settings:
         return
+
+    number = format_phone_number(number)
 
     payload = {
         "number": number,
@@ -49,15 +68,21 @@ def send_whatsapp_message(number, message):
             log_message(number, message, "Success")
         else:
             log_message(number, message, "Failed", frappe.as_json(resp_data))
+        
+        return resp_data
             
     except Exception as e:
         frappe.log_error(f"WhatsApp Text Send Error: {str(e)}", "WhatsApp Integration Error")
         log_message(number, message, "Failed", str(e))
+        return {"status": "error", "message": str(e)}
 
+@frappe.whitelist()
 def send_whatsapp_media(number, media_url, message="", filename=""):
     settings = get_settings()
     if not settings:
         return
+
+    number = format_phone_number(number)
 
     payload = {
         "number": number,
@@ -79,13 +104,16 @@ def send_whatsapp_media(number, media_url, message="", filename=""):
         
         resp_data = response.json()
         if resp_data.get("status") == "success":
-            log_message(number, f"Media: {media_url}\n{message}", "Success")
+            log_message(number, message, "Success", has_media=1, media_url=media_url)
         else:
-            log_message(number, f"Media: {media_url}\n{message}", "Failed", frappe.as_json(resp_data))
+            log_message(number, message, "Failed", frappe.as_json(resp_data), has_media=1, media_url=media_url)
+            
+        return resp_data
             
     except Exception as e:
         frappe.log_error(f"WhatsApp Media Send Error: {str(e)}", "WhatsApp Integration Error")
-        log_message(number, f"Media: {media_url}\n{message}", "Failed", str(e))
+        log_message(number, message, "Failed", str(e), has_media=1, media_url=media_url)
+        return {"status": "error", "message": str(e)}
 
 @frappe.whitelist(allow_guest=True)
 def incoming_message(**kwargs):
